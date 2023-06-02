@@ -231,7 +231,7 @@ class NeRFDataset:
         # sample a low-resolution but full image
         rays = get_rays(poses, intrinsics, H, W, -1)
 
-        data = {
+        return {
             'H': H,
             'W': W,
             'rays_o': rays['rays_o'],
@@ -243,13 +243,11 @@ class NeRFDataset:
             'radius': self.opt.ref_radii,
         }
 
-        return data
-
     def collate(self, index):
 
-        B = len(index)
-
         if self.training:
+            B = len(index)
+
             # random pose on the fly
             poses, dirs, thetas, phis, radius = rand_poses(B, self.device, self.opt, radius_range=self.opt.radius_range, theta_range=self.opt.theta_range, phi_range=self.opt.phi_range, return_dirs=True, angle_overhead=self.opt.angle_overhead, angle_front=self.opt.angle_front, uniform_sphere_rate=self.opt.uniform_sphere_rate)
 
@@ -299,7 +297,7 @@ class NeRFDataset:
         delta_azimuth[delta_azimuth > 180] -= 360 # range in [-180, 180]
         delta_radius = radius - self.opt.default_radius
 
-        data = {
+        return {
             'H': self.H,
             'W': self.W,
             'rays_o': rays['rays_o'],
@@ -310,8 +308,6 @@ class NeRFDataset:
             'azimuth': delta_azimuth,
             'radius': delta_radius,
         }
-
-        return data
 
     def dataloader(self, batch_size=None):
         batch_size = batch_size or self.opt.batch_size

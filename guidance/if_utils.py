@@ -39,7 +39,7 @@ class IF(nn.Module):
 
         self.device = device
 
-        print(f'[INFO] loading DeepFloyd IF-I-XL...')
+        print('[INFO] loading DeepFloyd IF-I-XL...')
 
         model_key = "DeepFloyd/IF-I-XL-v1.0"
 
@@ -70,7 +70,7 @@ class IF(nn.Module):
         self.max_step = int(self.num_train_timesteps * t_range[1])
         self.alphas = self.scheduler.alphas_cumprod.to(self.device) # for convenience
 
-        print(f'[INFO] loaded DeepFloyd IF-I-XL!')
+        print('[INFO] loaded DeepFloyd IF-I-XL!')
 
     @torch.no_grad()
     def get_text_embeds(self, prompt):
@@ -79,9 +79,7 @@ class IF(nn.Module):
         # TODO: should I add the preprocessing at https://github.com/huggingface/diffusers/blob/main/src/diffusers/pipelines/deepfloyd_if/pipeline_if.py#LL486C10-L486C28
         prompt = self.pipe._text_preprocessing(prompt, clean_caption=False)
         inputs = self.tokenizer(prompt, padding='max_length', max_length=77, truncation=True, add_special_tokens=True, return_tensors='pt')
-        embeddings = self.text_encoder(inputs.input_ids.to(self.device))[0]
-
-        return embeddings
+        return self.text_encoder(inputs.input_ids.to(self.device))[0]
 
 
     def train_step(self, text_embeddings, pred_rgb, guidance_scale=100, grad_scale=1):
@@ -116,10 +114,7 @@ class IF(nn.Module):
         grad = grad_scale * w[:, None, None, None] * (noise_pred - noise)
         grad = torch.nan_to_num(grad)
 
-        # since we omitted an item in grad, we need to use the custom function to specify the gradient
-        loss = SpecifyGradient.apply(images, grad)
-
-        return loss
+        return SpecifyGradient.apply(images, grad)
 
     @torch.no_grad()
     def produce_imgs(self, text_embeddings, height=64, width=64, num_inference_steps=50, guidance_scale=7.5):
@@ -129,7 +124,7 @@ class IF(nn.Module):
 
         self.scheduler.set_timesteps(num_inference_steps)
 
-        for i, t in enumerate(self.scheduler.timesteps):
+        for t in self.scheduler.timesteps:
             # expand the latents if we are doing classifier-free guidance to avoid doing two forward passes.
             model_input = torch.cat([images] * 2)
             model_input = self.scheduler.scale_model_input(model_input, t)

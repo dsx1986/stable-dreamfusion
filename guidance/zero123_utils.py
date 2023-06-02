@@ -140,7 +140,7 @@ class Zero123(nn.Module):
             grad_scale = 1.0 # claforte: I think this might converge faster...?
         else:
             assert False, f'Unrecognized `zero123_grad_scale`: {self.opt.zero123_grad_scale}'
-        
+
         if as_latent:
             latents = F.interpolate(pred_rgb, (32, 32), mode='bilinear', align_corners=False) * 2 - 1
         else:
@@ -172,7 +172,7 @@ class Zero123(nn.Module):
 
             noise_preds = []
             # Loop through each ref image
-            for (zero123_w, c_crossattn, c_concat, ref_polar, ref_azimuth, ref_radius) in zip(zero123_ws.T,
+            for zero123_w, c_crossattn, c_concat, ref_polar, ref_azimuth, ref_radius in zip(zero123_ws.T,
                                                                                               embeddings['c_crossattn'], embeddings['c_concat'],
                                                                                               ref_polars, ref_azimuths, ref_radii):
                 # polar,azimuth,radius are all actually delta wrt default
@@ -183,9 +183,15 @@ class Zero123(nn.Module):
                 # T = torch.tensor([math.radians(p), math.sin(math.radians(-a)), math.cos(math.radians(a)), r])
                 # T = T[None, None, :].to(self.device)
                 T = torch.stack([torch.deg2rad(p), torch.sin(torch.deg2rad(-a)), torch.cos(torch.deg2rad(a)), r], dim=-1)[:, None, :]
-                cond = {}
                 clip_emb = self.model.cc_projection(torch.cat([c_crossattn.repeat(len(T), 1, 1), T], dim=-1))
-                cond['c_crossattn'] = [torch.cat([torch.zeros_like(clip_emb).to(self.device), clip_emb], dim=0)]
+                cond = {
+                    'c_crossattn': [
+                        torch.cat(
+                            [torch.zeros_like(clip_emb).to(self.device), clip_emb],
+                            dim=0,
+                        )
+                    ]
+                }
                 cond['c_concat'] = [torch.cat([torch.zeros_like(c_concat).repeat(len(T), 1, 1, 1).to(self.device), c_concat.repeat(len(T), 1, 1, 1)], dim=0)]
                 noise_pred = self.model.apply_model(x_in, t_in, cond)
                 noise_pred_uncond, noise_pred_cond = noise_pred.chunk(2)
@@ -239,10 +245,7 @@ class Zero123(nn.Module):
                 viz_images = torch.cat([pred_rgb_256, result_noisier_image, result_hopefully_less_noisy_image],dim=-1)
                 save_image(viz_images, save_guidance_path)
 
-        # since we omitted an item in grad, we need to use the custom function to specify the gradient
-        loss = SpecifyGradient.apply(latents, grad)
-
-        return loss
+        return SpecifyGradient.apply(latents, grad)
 
     # verification
     @torch.no_grad()
@@ -259,16 +262,21 @@ class Zero123(nn.Module):
         T = torch.tensor([math.radians(polar), math.sin(math.radians(azimuth)), math.cos(math.radians(azimuth)), radius])
         T = T[None, None, :].to(self.device)
 
-        cond = {}
         clip_emb = self.model.cc_projection(torch.cat([embeddings['c_crossattn'] if c_crossattn is None else c_crossattn, T], dim=-1))
-        cond['c_crossattn'] = [torch.cat([torch.zeros_like(clip_emb).to(self.device), clip_emb], dim=0)]
+        cond = {
+            'c_crossattn': [
+                torch.cat(
+                    [torch.zeros_like(clip_emb).to(self.device), clip_emb], dim=0
+                )
+            ]
+        }
         cond['c_concat'] = [torch.cat([torch.zeros_like(embeddings['c_concat']).to(self.device), embeddings['c_concat']], dim=0)] if c_concat is None else [torch.cat([torch.zeros_like(c_concat).to(self.device), c_concat], dim=0)]
 
         # produce latents loop
         latents = torch.randn((1, 4, h // 8, w // 8), device=self.device)
         self.scheduler.set_timesteps(ddim_steps)
 
-        for i, t in enumerate(self.scheduler.timesteps):
+        for t in self.scheduler.timesteps:
             x_in = torch.cat([latents] * 2)
             t_in = torch.cat([t.view(1)] * 2).to(self.device)
 
@@ -295,8 +303,15 @@ class Zero123(nn.Module):
         # imgs: [B, 3, 256, 256] RGB space image
         # with self.model.ema_scope():
         imgs = imgs * 2 - 1
-        latents = torch.cat([self.model.get_first_stage_encoding(self.model.encode_first_stage(img.unsqueeze(0))) for img in imgs], dim=0)
-        return latents # [B, 4, 32, 32] Latent space image
+        return torch.cat(
+            [
+                self.model.get_first_stage_encoding(
+                    self.model.encode_first_stage(img.unsqueeze(0))
+                )
+                for img in imgs
+            ],
+            dim=0,
+        )
 
 
 if __name__ == '__main__':
@@ -325,10 +340,10 @@ if __name__ == '__main__':
     image = image.astype(np.float32) / 255.0
     image = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0).contiguous().to(device)
 
-    print(f'[INFO] loading model ...')
+    print('[INFO] loading model ...')
     zero123 = Zero123(device, opt.fp16, opt=opt)
 
-    print(f'[INFO] running model ...')
+    print('[INFO] running model ...')
     outputs = zero123(image, polar=opt.polar, azimuth=opt.azimuth, radius=opt.radius)
     plt.imshow(outputs[0])
     plt.show()

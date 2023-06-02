@@ -130,7 +130,7 @@ def srgb_to_linear(x):
 
 class Trainer(object):
     def __init__(self,
-		         argv, # command line args
+    		     argv, # command line args
                  name, # name of this experiment
                  opt, # extra conf
                  model, # network
@@ -258,7 +258,9 @@ class Trainer(object):
         self.log(f'[INFO] Cmdline: {self.argv}')
         self.log(f'[INFO] opt: {self.opt}')
         self.log(f'[INFO] Trainer: {self.name} | {self.time_stamp} | {self.device} | {"fp16" if self.fp16 else "fp32"} | {self.workspace}')
-        self.log(f'[INFO] #parameters: {sum([p.numel() for p in model.parameters() if p.requires_grad])}')
+        self.log(
+            f'[INFO] #parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}'
+        )
 
         if self.workspace is not None:
             if self.use_checkpoint == "scratch":
