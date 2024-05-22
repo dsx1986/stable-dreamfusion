@@ -86,6 +86,6 @@ wrapped_text = textwrap.fill(output_text, width=50)
 
 print('+' + '-'*52 + '+')
 for line in wrapped_text.split('\n'):
-    print('| {} |'.format(line.ljust(50)))
+    print(f'| {line.ljust(50)} |')
 print('+' + '-'*52 + '+')
 #print(result)
